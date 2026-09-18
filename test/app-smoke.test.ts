@@ -1140,6 +1140,211 @@ console.log('  ✓ 冲突审阅面板（含忽略折叠与交叠高亮）渲染�
   cd3.remove()
 }
 
+// 批量操作：组合筛选 → 全选 / 反选 → 预览 → 取消不改数据 → 确认一次性更新（保序去重）→ 刷新一致
+{
+  const bulkText = '好评如潮差评平平好评结尾' // 10 字
+  const bk = (id: string, start: number, end: number, tags: string[], quote?: string, status: 'bound' | 'pending' = 'bound') => ({
+    id,
+    quote: quote ?? bulkText.slice(start, end),
+    start,
+    end,
+    note: '',
+    tags,
+    status,
+    createdAt: 1,
+    updatedAt: 1,
+    contextBefore: '',
+    contextAfter: '',
+    ...(status === 'pending'
+      ? { pendingReason: '原文中已找不到该引文，需要手动重新选择' }
+      : {}),
+  })
+  const bulkDoc = {
+    title: '批量文档',
+    text: bulkText,
+    updatedAt: Date.now(),
+    annotations: [
+      bk('bk_a', 0, 2, ['正面']), // 好评
+      bk('bk_b', 4, 6, ['正面', '重点']), // 好评（位置 4,5）
+      bk('bk_c', 2, 4, ['反面']), // 差评
+      bk('bk_d', 6, 8, ['正面'], '旧引文XYZ', 'pending'),
+    ],
+  }
+  localStorage.setItem('anchor-annotation-console:v1', JSON.stringify(bulkDoc))
+  const bc = document.createElement('div')
+  bc.id = 'rootbulk'
+  document.body.appendChild(bc)
+  const br = createRoot(bc)
+
+  await new Promise<void>((resolve) => {
+    br.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+    setTimeout(resolve, 100)
+  })
+
+  const section = () => bc.querySelector('.bulk-section') as HTMLElement
+  assert.ok(section(), '应渲染批量操作分区')
+  const clickButton = (text: string, root: ParentNode = bc) => {
+    const btn = [...root.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === text,
+    ) as HTMLButtonElement | undefined
+    assert.ok(btn, `应存在按钮「${text}」`)
+    btn!.click()
+    return btn!
+  }
+  const setNativeValue = (el: HTMLInputElement | HTMLTextAreaElement, v: string) => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(el, v)
+    el.dispatchEvent(new window.Event('input', { bubbles: true }))
+  }
+  const wait = () => new Promise<void>((resolve) => setTimeout(resolve, 50))
+  const saved = () => JSON.parse(localStorage.getItem('anchor-annotation-console:v1')!)
+
+  // 初始：匹配全部 4 条
+  assert.ok(section()!.textContent!.includes('匹配'), '应显示匹配数量')
+  assert.ok(/匹配\s*<strong>4<\/strong>/.test(section()!.innerHTML), '初始应匹配 4 条')
+
+  // 状态筛选：已绑定 → 3 条
+  clickButton('已绑定', section()!)
+  await wait()
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item').length, 3, '已绑定应匹配 3 条')
+
+  // 标签筛选：#正面（默认全部命中）→ bk_a、bk_b
+  ;([...section()!.querySelectorAll('.cov-tag')].find(
+    (b) => b.textContent?.trim() === '#正面',
+  ) as HTMLButtonElement).click()
+  await wait()
+  let rows = [...section()!.querySelectorAll('.bulk-item')]
+  assert.strictEqual(rows.length, 2, '已绑定 + #正面 应匹配 2 条')
+
+  // 切换任一命中并加选 #反面 → bk_a、bk_b、bk_c（任一命中）；#正面 已选，点 #反面
+  clickButton('任一命中', section()!)
+  await wait()
+  ;([...section()!.querySelectorAll('.cov-tag')].find(
+    (b) => b.textContent?.trim() === '#反面',
+  ) as HTMLButtonElement).click()
+  await wait()
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item').length, 3, '任一命中应匹配 3 条')
+
+  // 关键词「差评」→ 仅 bk_c
+  setNativeValue(section()!.querySelector('#bulk-keyword') as HTMLInputElement, '差评')
+  await wait()
+  rows = [...section()!.querySelectorAll('.bulk-item')]
+  assert.strictEqual(rows.length, 1, '关键词应收窄到 1 条')
+  assert.ok(rows[0]!.textContent!.includes('差评'), '匹配项应是 bk_c')
+
+  // 无匹配提示：再叠加状态「待处理」
+  clickButton('待处理', section()!)
+  await wait()
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item').length, 0, '应无匹配')
+  assert.ok(section()!.textContent!.includes('没有匹配的标注'), '无匹配时应提示且不改数据')
+  // 全选按钮禁用
+  assert.ok(
+    ([...section()!.querySelectorAll('button')].find((b) => b.textContent?.trim() === '全选') as HTMLButtonElement).disabled,
+    '无匹配时全选应禁用',
+  )
+
+  // 清空筛选 → 回到 4 条
+  clickButton('清空筛选', section()!)
+  await wait()
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item').length, 4, '清空后应匹配全部')
+
+  // 全选 4 条 → 反选 → 0 条 → 再全选
+  clickButton('全选', section()!)
+  await wait()
+  assert.ok(section()!.textContent!.includes('已选 4 条'), '全选后应显示已选 4 条')
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item-on').length, 4)
+  clickButton('反选', section()!)
+  await wait()
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item-on').length, 0, '反选后应 0 条选中')
+  clickButton('全选', section()!)
+  await wait()
+
+  // 进入添加预览：取消 → 数据不变
+  clickButton('添加标签', section()!)
+  await wait()
+  assert.ok(section()!.textContent!.includes('批量添加标签'), '应进入添加预览')
+  // 输入已存在的标签：所有标注都含「正面」？bk_c 不含、bk_d 不含 → 仍有变化
+  setNativeValue(
+    section()!.querySelector('.bulk-preview .tag-chips input') as HTMLInputElement,
+    '正面,',
+  )
+  await wait()
+  assert.ok(section()!.textContent!.includes('将更新'), '应显示将更新数量')
+  const skipHint = [...section()!.querySelectorAll('.bulk-preview-count')].some((e) =>
+    e.textContent?.includes('无变化将跳过'),
+  )
+  assert.ok(skipHint, 'bk_a/bk_b 已含正面，应提示无变化跳过条数')
+  clickButton('取消', section()!)
+  await wait()
+  const afterCancel = saved()
+  assert.deepStrictEqual(
+    afterCancel.annotations.map((a: { tags: string[] }) => a.tags),
+    bulkDoc.annotations.map((a) => a.tags),
+    '取消预览不应改动数据',
+  )
+
+  // 移除标签：全选 → 移除「正面」，预览中 bk_a / bk_b / bk_d 变化（3 条），bk_c 跳过
+  clickButton('移除标签', section()!)
+  await wait()
+  assert.ok(section()!.textContent!.includes('批量移除标签'), '应进入移除预览')
+  setNativeValue(
+    section()!.querySelector('.bulk-preview .tag-chips input') as HTMLInputElement,
+    '正面,',
+  )
+  await wait()
+  assert.ok(section()!.textContent!.includes('选中 4 条'), '预览应显示选中数')
+  assert.ok(section()!.innerHTML.includes('bulk-tag-del'), '被移除标签应以删除样式标出')
+  const previewRows = section()!.querySelectorAll('.bulk-preview-row')
+  assert.strictEqual(previewRows.length, 3, '仅 3 条实际持有正面标签')
+  const confirmBtn = [...section()!.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim().startsWith('确认更新'),
+  ) as HTMLButtonElement
+  assert.ok(confirmBtn.textContent?.includes('3 条'), '确认按钮应标注更新 3 条')
+  confirmBtn.click()
+  await wait()
+
+  const after = saved()
+  assert.deepStrictEqual(
+    after.annotations.map((a: { tags: string[] }) => a.tags),
+    [[], ['重点'], ['反面'], []],
+    '移除应只删正面且保留其余标签原顺序',
+  )
+  assert.ok(
+    after.annotations.every((a: { updatedAt: number }) => typeof a.updatedAt === 'number'),
+  )
+  // bk_c 未变化：updatedAt 保持 1
+  assert.strictEqual(after.annotations[2].updatedAt, 1, '未变化标注 updatedAt 不动')
+  assert.ok(section()!.textContent!.includes('更新 3 条标注'), '完成后应给出受影响数量提示')
+  // 操作后筛选列表仍在（筛选条件保留），勾选清空
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item-on').length, 0, '提交后勾选应清空')
+  assert.strictEqual(section()!.querySelectorAll('.bulk-item').length, 4, '提交后仍展示匹配结果')
+
+  // 刷新（重新挂载）后数据保持一致
+  br.unmount()
+  const bc2 = document.createElement('div')
+  bc2.id = 'rootbulk2'
+  document.body.appendChild(bc2)
+  const br2 = createRoot(bc2)
+  await new Promise<void>((resolve) => {
+    br2.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+    setTimeout(resolve, 100)
+  })
+  const reparsed2 = JSON.parse(localStorage.getItem('anchor-annotation-console:v1')!)
+  assert.deepStrictEqual(
+    reparsed2.annotations.map((a: { tags: string[] }) => a.tags),
+    [[], ['重点'], ['反面'], []],
+    '刷新后批量更新结果保持一致',
+  )
+  // 导入导出：标签数据位于 annotations.tags，随既有导入导出链路保持
+  const exported = reparsed2
+  assert.ok(Array.isArray(exported.annotations[1].tags), '导出数据应含更新后的标签')
+  assert.deepStrictEqual(exported.annotations[1].tags, ['重点'])
+  console.log('  ✓ 批量操作：组合筛选、全选反选、预览取消、一次性更新保序去重、提示与刷新一致')
+
+  br2.unmount()
+  bc.remove()
+  bc2.remove()
+}
+
 // 旧版数据（无 conflictRules / ignoredConflicts 字段）应无损加载
 const legacy = {
   title: '旧文档',

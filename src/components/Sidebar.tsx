@@ -18,6 +18,7 @@ import type { SampleQueueResult } from '../lib/sampling'
 import { SnapshotSection } from './SnapshotSection'
 import { SamplingSection } from './SamplingSection'
 import { DatasetSplitSection } from './DatasetSplitSection'
+import { BulkSection } from './BulkSection'
 
 interface Props {
   /** 文档标题（训练集划分导出的 JSONL 每行需要） */
@@ -68,6 +69,12 @@ interface Props {
   onUnignore: (c: ConflictItem) => void
   onConfigureRules: () => void
   onRenameTags: () => void
+  /** 批量操作：确认后一次性更新选中的标注标签，返回实际更新条数 */
+  onBulkApply: (
+    selectedIds: string[],
+    mode: 'add' | 'remove',
+    tags: string[],
+  ) => number
   tagCount: number
   /** 当前全部标签（标注使用 + 规则引用），供抽样配置表单列出 */
   allTags: string[]
@@ -465,6 +472,10 @@ export const Sidebar = forwardRef<HTMLElement, Props>(function Sidebar(props, se
   const activeConflicts = props.conflicts.filter((c) => !c.ignored)
   const ignoredConflicts = props.conflicts.filter((c) => c.ignored)
   const annById = new Map(props.annotations.map((a) => [a.id, a]))
+  // 批量操作筛选用：仅当前标注中实际使用的标签（标签重命名 / 删除后随之更新）
+  const annotationTagSet = new Set<string>()
+  props.annotations.forEach((a) => a.tags.forEach((t) => annotationTagSet.add(t)))
+  const allAnnotationTags = [...annotationTagSet]
 
   return (
     <aside className="sidebar">
@@ -614,6 +625,14 @@ export const Sidebar = forwardRef<HTMLElement, Props>(function Sidebar(props, se
           重复互斥规则按创建时间合并，失效的忽略记录自动清理。
         </p>
       </section>
+
+      <BulkSection
+        annotations={props.annotations}
+        allTags={allAnnotationTags}
+        onFocus={props.onFocus}
+        onRebindStart={props.onRebindStart}
+        onApply={props.onBulkApply}
+      />
 
       <section className="side-section">
         <h2 className="side-heading">

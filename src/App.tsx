@@ -30,6 +30,7 @@ import {
   type ConflictItem,
 } from './lib/conflicts'
 import { planTagRename } from './lib/rename'
+import { planBulkTags } from './lib/bulk'
 import {
   auditCoverage,
   normalizeCoverageTags,
@@ -368,6 +369,33 @@ export default function App() {
       }
     })
     setPopover(null)
+  }
+
+  // ---------- 批量标签操作 ----------
+
+  /**
+   * 确认批量添加 / 移除标签：以当前文档重新计算计划（保证与预览一致），
+   * 在同一次 setDoc 中原子替换；无实际变化（标签都已存在 / 都不持有）时不改数据。
+   * 返回真正发生标签变化的标注数，供侧栏给出受影响数量提示。
+   */
+  const applyBulkTags = (
+    selectedIds: string[],
+    mode: 'add' | 'remove',
+    tags: string[],
+  ): number => {
+    // 与侧栏预览同源（同一次渲染的 doc）：先算出实际变化数用于结果提示
+    const preview = planBulkTags(doc.annotations, selectedIds, mode, tags)
+    if (!preview || preview.affectedCount === 0) return 0
+    const now = Date.now()
+    setDoc((d) => {
+      // 落地前以最新状态再算一次，保持与标签重命名相同的原子语义
+      const plan = planBulkTags(d.annotations, selectedIds, mode, tags, now)
+      if (!plan || plan.affectedCount === 0) return d
+      // 标签变化可能使抽样复核内容签名失效，结论同步清理
+      const sampleReviews = pruneSampleReviews(d.sampleReviews, plan.annotations)
+      return { ...d, annotations: plan.annotations, sampleReviews, updatedAt: now }
+    })
+    return preview.affectedCount
   }
 
   const ignoreConflict = (c: ConflictItem) => {
@@ -1038,6 +1066,7 @@ export default function App() {
             onUnignore={unignoreConflict}
             onConfigureRules={() => setPopover({ kind: 'rules' })}
             onRenameTags={() => setPopover({ kind: 'rename-tags' })}
+            onBulkApply={applyBulkTags}
             tagCount={allTags.length}
             allTags={allTags}
           />

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 interface Props {
   tags: string[]
@@ -9,6 +9,9 @@ interface Props {
 
 export function TagEditor({ tags, onChange, suggestions, placeholder }: Props) {
   const [input, setInput] = useState('')
+  // 弹层表单与侧栏批量预览可能同时挂载 TagEditor，datalist id 必须唯一
+  const reactId = useId()
+  const listId = `tag-suggestions-${reactId}`
 
   const add = (raw: string) => {
     const t = raw.trim().replace(/^#/, '')
@@ -36,7 +39,7 @@ export function TagEditor({ tags, onChange, suggestions, placeholder }: Props) {
         ))}
         <input
           value={input}
-          list="tag-suggestions"
+          list={listId}
           placeholder={placeholder ?? '输入标签后回车，逗号也可分隔'}
           onChange={(e) => {
             const v = e.target.value
@@ -55,7 +58,7 @@ export function TagEditor({ tags, onChange, suggestions, placeholder }: Props) {
             }
           }}
         />
-        <datalist id="tag-suggestions">
+        <datalist id={listId}>
           {remaining.map((s) => (
             <option key={s} value={s} />
           ))}

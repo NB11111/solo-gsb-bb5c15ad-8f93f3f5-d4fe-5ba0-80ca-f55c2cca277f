@@ -2048,6 +2048,288 @@ button {
   padding: 0 4px;
 }
 
+/* ---------- 批量操作 ---------- */
+
+.side-heading-bulk {
+  color: var(--primary-dark);
+}
+
+.bulk-message {
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.bulk-message-ok {
+  background: #ecfdf3;
+  color: #1a6b3c;
+}
+
+.bulk-message-info {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.bulk-filter-block {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.bulk-filter-row {
+  margin-bottom: 10px;
+}
+
+.bulk-filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.bulk-filter-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.bulk-filter-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.bulk-filter-label-row .bulk-filter-label {
+  margin-bottom: 0;
+}
+
+.bulk-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.bulk-seg-mini {
+  border-radius: 6px;
+}
+
+.bulk-seg-btn {
+  border: 0;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.bulk-seg-mini .bulk-seg-btn {
+  font-size: 11px;
+  padding: 2px 7px;
+}
+
+.bulk-seg-btn + .bulk-seg-btn {
+  border-left: 1px solid var(--line);
+}
+
+.bulk-seg-btn:hover {
+  background: #f0f2f6;
+}
+
+.bulk-seg-on {
+  background: var(--primary) !important;
+  color: #fff !important;
+}
+
+.bulk-tagpick {
+  margin: 0;
+}
+
+.bulk-no-tag-hint {
+  margin-bottom: 0;
+}
+
+.bulk-keyword {
+  width: 100%;
+}
+
+.bulk-reset {
+  margin-top: 8px;
+}
+
+.bulk-match-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.bulk-match-count {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.bulk-match-count strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.bulk-match-count em {
+  font-style: normal;
+  color: var(--primary-dark);
+}
+
+.bulk-match-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.bulk-empty-hint {
+  background: #fff;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.bulk-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.bulk-item {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+}
+
+.bulk-item-on {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(47, 107, 255, 0.25);
+}
+
+.bulk-check {
+  display: flex;
+  align-items: center;
+  padding-top: 3px;
+  cursor: pointer;
+}
+
+.bulk-check input {
+  cursor: pointer;
+}
+
+.bulk-item-main {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.bulk-item-quote {
+  font-size: 12.5px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bulk-item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 5px 0 0 22px;
+}
+
+.bulk-item-tags .ann-tag {
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bulk-action-hint {
+  margin: 0;
+}
+
+.bulk-preview-count {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+.bulk-preview-hint {
+  margin: 10px 0 6px;
+}
+
+.bulk-preview-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.bulk-preview-row {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+}
+
+.bulk-preview-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bulk-tag-add {
+  background: #d9f2e3;
+  color: #1a6b3c;
+  font-weight: 600;
+}
+
+.bulk-tag-del {
+  background: #fde4e4;
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
+.bulk-empty {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+}
+
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 980px) {
