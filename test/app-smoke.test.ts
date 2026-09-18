@@ -1140,6 +1140,234 @@ console.log('  ✓ 冲突审阅面板（含忽略折叠与交叠高亮）渲染�
   cd3.remove()
 }
 
+// 批量操作：组合筛选 → 全选/反选 → 添加/移除标签 → 预览 → 取消不改数据 → 确认一次性落地
+{
+  const btText = '零一二三四五六七八九十甲乙丙丁'
+  const mk = (
+    id: string,
+    start: number,
+    end: number,
+    tags: string[],
+    status: 'bound' | 'pending' = 'bound',
+  ) => ({
+    id,
+    quote: status === 'bound' ? btText.slice(start, end) : '已删除的引文ZZZ',
+    start,
+    end,
+    note: '',
+    tags,
+    status,
+    createdAt: 1,
+    updatedAt: 1,
+    contextBefore: '',
+    contextAfter: '',
+    ...(status === 'pending'
+      ? { pendingReason: '原文中已找不到该引文，需要手动重新选择' }
+      : {}),
+  })
+  const btDoc = {
+    title: '批量文档',
+    text: btText,
+    updatedAt: Date.now(),
+    annotations: [
+      mk('bt_a', 0, 2, ['甲']),
+      mk('bt_b', 2, 4, ['甲', '乙']),
+      mk('bt_c', 4, 6, ['乙']),
+      mk('bt_d', 6, 8, [], 'pending'),
+    ],
+  }
+  localStorage.setItem('anchor-annotation-console:v1', JSON.stringify(btDoc))
+  const cb = document.createElement('div')
+  cb.id = 'rootbt'
+  document.body.appendChild(cb)
+  const rb = createRoot(cb)
+
+  await new Promise<void>((resolve) => {
+    rb.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+    setTimeout(resolve, 100)
+  })
+
+  const wait = () => new Promise<void>((resolve) => setTimeout(resolve, 50))
+  const saved = () => JSON.parse(localStorage.getItem('anchor-annotation-console:v1')!)
+  const section = () =>
+    [...cb.querySelectorAll('section.side-section')].find(
+      (s) => s.querySelector('h2')?.textContent === '批量操作',
+    ) as HTMLElement
+  const sectionText = () => section().textContent ?? ''
+  const clickIn = (root: ParentNode, selector: string, text: string) => {
+    const el = [...root.querySelectorAll(selector)].find(
+      (b) => b.textContent?.trim() === text,
+    ) as HTMLButtonElement | undefined
+    assert.ok(el, `应存在「${text}」（${selector}）`)
+    el!.click()
+    return el!
+  }
+  const setNativeValue = (el: HTMLInputElement, v: string) => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(el, v)
+    el.dispatchEvent(new window.Event('input', { bubbles: true }))
+  }
+  // 筛选块（第一个 .batch-block）中的状态 / 标签模式 pills 按 DOM 顺序区分
+  const statusPill = (text: string) =>
+    clickIn(section().querySelectorAll('.batch-block')[0]!.querySelectorAll('.batch-pills')[0]! as HTMLElement, '.batch-pill', text)
+  const tagModePill = (text: string) =>
+    clickIn(section().querySelectorAll('.batch-block')[0]!.querySelectorAll('.batch-pills')[1]! as HTMLElement, '.batch-pill', text)
+  const matchCount = () => section().querySelector('.batch-match-count')!.textContent!
+
+  assert.ok(section(), '应渲染批量操作分区')
+  assert.ok(matchCount().includes('4'), '初始应匹配全部 4 条')
+
+  // 1. 状态筛选：待处理 1 条、已绑定 3 条
+  statusPill('待处理')
+  await wait()
+  assert.ok(/匹配\s*1\s*条/.test(matchCount()), '待处理应匹配 1 条')
+  statusPill('已绑定')
+  await wait()
+  assert.ok(/匹配\s*3\s*条/.test(matchCount()), '已绑定应匹配 3 条')
+  statusPill('全部')
+  await wait()
+
+  // 2. 标签筛选：全部（AND）与任一（OR）
+  clickIn(section(), '.cov-tag', '#甲')
+  await wait()
+  assert.ok(/匹配\s*2\s*条/.test(matchCount()), '标签 甲 应匹配 2 条')
+  clickIn(section(), '.cov-tag', '#乙')
+  await wait()
+  assert.ok(/匹配\s*1\s*条/.test(matchCount()), '全部模式：甲+乙 应只匹配 1 条')
+  tagModePill('任一')
+  await wait()
+  assert.ok(/匹配\s*3\s*条/.test(matchCount()), '任一模式：甲∨乙 应匹配 3 条')
+  clickIn(section(), '.cov-tag', '#甲')
+  clickIn(section(), '.cov-tag', '#乙')
+  await wait()
+  assert.ok(/匹配\s*4\s*条/.test(matchCount()), '取消标签后应恢复 4 条')
+
+  // 3. 关键词筛选（与状态 AND 组合）+ 无匹配提示
+  setNativeValue(section().querySelector('#batch-keyword') as HTMLInputElement, '零')
+  await wait()
+  assert.ok(/匹配\s*1\s*条/.test(matchCount()), '关键词「零」应匹配 1 条')
+  statusPill('待处理')
+  await wait()
+  assert.ok(/匹配\s*0\s*条/.test(matchCount()), '关键词+待处理应无匹配')
+  assert.ok(sectionText().includes('没有匹配'), '无匹配时应显示提示')
+  const beforeNoMatch = JSON.stringify(saved().annotations)
+  assert.ok(
+    (section().querySelector('.batch-matchbar .btn') as HTMLButtonElement).disabled,
+    '无匹配时全选应禁用',
+  )
+  statusPill('全部')
+  setNativeValue(section().querySelector('#batch-keyword') as HTMLInputElement, '')
+  await wait()
+  assert.strictEqual(JSON.stringify(saved().annotations), beforeNoMatch, '无匹配筛选不改数据')
+
+  // 4. 全选 / 反选 / 单选
+  clickIn(section(), '.batch-matchbar .btn', '全选')
+  await wait()
+  assert.ok(/已选\s*4\s*条/.test(matchCount()), '全选后应已选 4 条')
+  const firstCheckbox = section().querySelector('.batch-row input[type="checkbox"]') as HTMLInputElement
+  firstCheckbox.click()
+  await wait()
+  assert.ok(/已选\s*3\s*条/.test(matchCount()), '取消单选后应已选 3 条')
+  clickIn(section(), '.batch-matchbar .btn', '反选')
+  await wait()
+  assert.ok(/已选\s*1\s*条/.test(matchCount()), '反选后应已选 1 条')
+  clickIn(section(), '.batch-matchbar .btn', '反选')
+  await wait()
+  assert.ok(/已选\s*3\s*条/.test(matchCount()), '再次反选后应已选 3 条')
+
+  // 5. 添加标签：预览 → 取消不改数据
+  const tagInput = () => section().querySelector('.tag-editor input') as HTMLInputElement
+  setNativeValue(tagInput(), '新标,')
+  await wait()
+  assert.ok(sectionText().includes('预览'), '应显示预览')
+  assert.ok(sectionText().includes('将更新'), '预览应统计将更新数量')
+  assert.ok(sectionText().includes('#新标'), '预览应展示新标签')
+  assert.strictEqual(
+    section().querySelectorAll('.batch-preview-list .rename-ann-row').length,
+    3,
+    '预览应逐条列出 3 条选中标注',
+  )
+  const beforeCancel = JSON.stringify(saved().annotations)
+  clickIn(section(), '.form-actions .btn', '取消')
+  await wait()
+  assert.strictEqual(JSON.stringify(saved().annotations), beforeCancel, '取消预览不改动任何数据')
+  assert.ok(!section().querySelector('.batch-preview'), '取消后预览应消失')
+
+  // 6. 重新输入并确认：一次性落地、保序、结果提示
+  setNativeValue(tagInput(), '新标,')
+  await wait()
+  clickIn(section(), '.form-actions .btn', '确认更新（3 条）')
+  await wait()
+  const afterAdd = saved().annotations
+  assert.deepStrictEqual(afterAdd[1].tags, ['甲', '乙', '新标'], '新标签追加到末尾且保序')
+  assert.deepStrictEqual(afterAdd[2].tags, ['乙', '新标'])
+  assert.deepStrictEqual(afterAdd[3].tags, ['新标'], 'pending 标注同样更新')
+  assert.deepStrictEqual(afterAdd[0].tags, ['甲'], '未选中的标注不受影响')
+  assert.ok(sectionText().includes('已为 3 条标注添加标签 #新标'), '完成后应提示受影响数量')
+  assert.ok(/已选\s*0\s*条/.test(matchCount()), '完成后勾选应清空')
+
+  // 7. 自动去重：为 bt_b 添加已存在的「甲」→ 无变化，确认禁用
+  setNativeValue(section().querySelector('#batch-keyword') as HTMLInputElement, '二三')
+  await wait()
+  clickIn(section(), '.batch-matchbar .btn', '全选')
+  setNativeValue(tagInput(), '甲,')
+  await wait()
+  assert.ok(sectionText().includes('无变化'), '全部已存在时应显示无变化')
+  assert.ok(
+    (section().querySelector('.form-actions .btn-primary') as HTMLButtonElement).disabled,
+    '无实际变化时确认按钮应禁用',
+  )
+  const beforeDup = JSON.stringify(saved().annotations)
+  clickIn(section(), '.form-actions .btn', '取消')
+  await wait()
+  assert.strictEqual(JSON.stringify(saved().annotations), beforeDup, '无变化取消不改数据')
+  setNativeValue(section().querySelector('#batch-keyword') as HTMLInputElement, '')
+  await wait()
+
+  // 8. 移除标签：chips 选择 → 预览 → 确认
+  clickIn(section(), '.batch-matchbar .btn', '全选')
+  clickIn(section().querySelectorAll('.batch-block')[1]!, '.batch-pill', '移除标签')
+  await wait()
+  clickIn(section().querySelectorAll('.batch-block')[1]!, '.cov-tag', '#新标')
+  await wait()
+  assert.ok(sectionText().includes('不含这些标签'), '不含该标签的标注应标记无变化')
+  clickIn(section(), '.form-actions .btn', '确认更新（3 条）')
+  await wait()
+  const afterRemove = saved().annotations
+  assert.deepStrictEqual(afterRemove[0].tags, ['甲'])
+  assert.deepStrictEqual(afterRemove[1].tags, ['甲', '乙'], '移除后其余标签顺序不变')
+  assert.deepStrictEqual(afterRemove[2].tags, ['乙'])
+  assert.deepStrictEqual(afterRemove[3].tags, [])
+  assert.ok(
+    sectionText().includes('已从 3 条标注移除标签 #新标'),
+    '移除完成后应提示受影响数量',
+  )
+
+  // 9. 刷新（重新挂载）后状态一致
+  rb.unmount()
+  const cb2 = document.createElement('div')
+  cb2.id = 'rootbt2'
+  document.body.appendChild(cb2)
+  const rb2 = createRoot(cb2)
+  await new Promise<void>((resolve) => {
+    rb2.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+    setTimeout(resolve, 100)
+  })
+  const persisted = saved().annotations
+  assert.deepStrictEqual(persisted[1].tags, ['甲', '乙'], '刷新后标签状态保持一致')
+  assert.deepStrictEqual(persisted[3].tags, [])
+  assert.ok(
+    [...cb2.querySelectorAll('section.side-section')].some(
+      (s) => s.querySelector('h2')?.textContent === '批量操作',
+    ),
+    '重新挂载后批量操作分区仍渲染',
+  )
+  console.log('  ✓ 批量操作：组合筛选、全选/反选、预览、取消不改数据、确认落地与刷新一致')
+
+  rb2.unmount()
+  cb.remove()
+  cb2.remove()
+}
+
 // 旧版数据（无 conflictRules / ignoredConflicts 字段）应无损加载
 const legacy = {
   title: '旧文档',

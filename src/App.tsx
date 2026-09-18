@@ -30,6 +30,7 @@ import {
   type ConflictItem,
 } from './lib/conflicts'
 import { planTagRename } from './lib/rename'
+import { planBatchTagUpdate, type BatchTagOperation } from './lib/batchOps'
 import {
   auditCoverage,
   normalizeCoverageTags,
@@ -368,6 +369,20 @@ export default function App() {
       }
     })
     setPopover(null)
+  }
+
+  // ---------- 批量操作（添加 / 移除标签） ----------
+
+  /**
+   * 确认批量标签操作：以当前文档重新计算计划（保证与预览一致），
+   * 选中标注的标签变更在一次 setDoc 中原子落地；无实际变化时不改数据。
+   */
+  const applyBatchTags = (ids: string[], op: BatchTagOperation) => {
+    setDoc((d) => {
+      const plan = planBatchTagUpdate(d.annotations, new Set(ids), op)
+      if (plan.changes.length === 0) return d
+      return { ...d, annotations: plan.annotations, updatedAt: Date.now() }
+    })
   }
 
   const ignoreConflict = (c: ConflictItem) => {
@@ -1038,6 +1053,7 @@ export default function App() {
             onUnignore={unignoreConflict}
             onConfigureRules={() => setPopover({ kind: 'rules' })}
             onRenameTags={() => setPopover({ kind: 'rename-tags' })}
+            onApplyBatchTags={applyBatchTags}
             tagCount={allTags.length}
             allTags={allTags}
           />

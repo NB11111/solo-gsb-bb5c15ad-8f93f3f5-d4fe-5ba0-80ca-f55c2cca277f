@@ -18,6 +18,8 @@ import type { SampleQueueResult } from '../lib/sampling'
 import { SnapshotSection } from './SnapshotSection'
 import { SamplingSection } from './SamplingSection'
 import { DatasetSplitSection } from './DatasetSplitSection'
+import { BatchOpsSection } from './BatchOpsSection'
+import type { BatchTagOperation } from '../lib/batchOps'
 
 interface Props {
   /** 文档标题（训练集划分导出的 JSONL 每行需要） */
@@ -68,6 +70,8 @@ interface Props {
   onUnignore: (c: ConflictItem) => void
   onConfigureRules: () => void
   onRenameTags: () => void
+  /** 批量操作：确认后对选中标注一次性添加 / 移除标签 */
+  onApplyBatchTags: (ids: string[], op: BatchTagOperation) => void
   tagCount: number
   /** 当前全部标签（标注使用 + 规则引用），供抽样配置表单列出 */
   allTags: string[]
@@ -614,6 +618,13 @@ export const Sidebar = forwardRef<HTMLElement, Props>(function Sidebar(props, se
           重复互斥规则按创建时间合并，失效的忽略记录自动清理。
         </p>
       </section>
+
+      <BatchOpsSection
+        annotations={props.annotations}
+        activeId={props.activeId}
+        onFocus={props.onFocus}
+        onApply={props.onApplyBatchTags}
+      />
 
       <section className="side-section">
         <h2 className="side-heading">
